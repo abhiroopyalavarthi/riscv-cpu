@@ -1,0 +1,4 @@
+build/
+*.fst
+*.vcd
+.DS_Store
