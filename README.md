@@ -1,5 +1,7 @@
 # RV32I RISC-V CPU in SystemVerilog
 
+![tests](https://github.com/abhiroopyalavarthi/riscv-cpu/actions/workflows/ci.yml/badge.svg)
+
 A 5-stage pipelined RISC-V processor (RV32I) with forwarding, hazard detection, a branch predictor and instruction/data caches. It's verified in Verilator against the official riscv-tests suite and against my own single-cycle reference core, and it runs C programs compiled with GCC.
 
 ```
@@ -47,6 +49,10 @@ flowchart LR
 | Load-use | stall IF/ID, bubble into EX | 1 cycle |
 | Branch / jump | resolve in EX, flush IF/ID + ID/EX (predicted with the BTB when BP is on) | 2 cycles on mispredict |
 | Cache miss | freeze pipeline | miss penalty |
+
+![Load-use stall and branch flush in the pipeline](docs/pipeline_hazards.png)
+
+*`hazards.S` on the pipeline. 21–23 ps: `load_use` stalls fetch for one cycle (`pc_f` holds `0x24`). 33–35 ps: the taken `beq` sets `redirect`, and fetch jumps from `0x38` to `0x3c`, throwing away the two wrong-path instructions.*
 
 ## Results
 
