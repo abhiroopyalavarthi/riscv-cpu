@@ -24,7 +24,9 @@ Status: done. `make test` passes all three with `-Wall` and no lint waivers.
 
 **No storage for x0.** The array is `regs[1:31]`. x0 reads are a hardwired 0, and writes to x0 are gated off. That's cheaper and harder to get wrong than storing a register and forcing it to 0.
 
-**Write-through bypass in the register file.** If WB writes register r in the same cycle ID reads r, the read returns `wdata` instead of the old value. The single-cycle core doesn't need this. In the 5-stage pipeline, though, an instruction 3 behind a producer reads the register in ID while the producer is in WB. Without the bypass I'd need a third forwarding path. Removing the bypass made the regfile test fail 614 times, so the test covers it.
+**Write-through bypass in the register file.** If WB writes register r in the same cycle ID reads r, the read returns `wdata` instead of the old value. In the 5-stage pipeline, an instruction 3 behind a producer reads the register in ID while the producer is in WB. Without the bypass I'd need a third forwarding path. Removing the bypass made the regfile test fail 614 times, so the test covers it.
+
+*Update from M2:* the bypass is now a parameter (`BYPASS`), and the single-cycle core turns it off. In that core, the reader and the writer are the same instruction, so the bypass created a combinational loop. See `bugs.md`.
 
 ## Verification approach
 

@@ -2,10 +2,16 @@
 // 2 combinational read ports, 1 synchronous write port.
 // x0 always reads 0, writes to it are dropped.
 //
-// Write-through bypass: if WB writes a register in the same cycle ID reads
-// it, the read returns the new value. The single-cycle core doesn't care,
-// but the pipeline needs it (otherwise WB->ID is a 3rd forwarding path).
-module regfile (
+// Write-through bypass (BYPASS=1): if WB writes a register in the same cycle
+// ID reads it, the read returns the new value. The pipeline needs this
+// (otherwise WB->ID is a 3rd forwarding path).
+//
+// The single-cycle core must use BYPASS=0. There the reader and the writer
+// are the SAME instruction (addi a0, a0, 1), so the bypass would feed the
+// result back into its own input: a combinational loop.
+module regfile #(
+    parameter bit BYPASS = 1'b1
+) (
     input  logic        clk,
     input  logic        we,
     input  logic [4:0]  waddr,
@@ -26,7 +32,7 @@ module regfile (
     function automatic logic [31:0] read_port(input logic [4:0] ra);
         if (ra == 5'd0)
             return 32'b0;
-        else if (we && waddr == ra)
+        else if (BYPASS && we && waddr == ra)
             return wdata;               // bypass
         else
             return regs[ra];
