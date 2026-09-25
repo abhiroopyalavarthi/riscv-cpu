@@ -16,7 +16,7 @@ PASS (15405 cycles)
 ## Highlights
 
 - **Passes the official RISC-V compliance tests**: 41/42 rv32ui tests on every configuration. The last one, `ma_data`, tests misaligned loads/stores; the spec allows a core to handle them in hardware *or* trap, and this core traps (stops with a `misaligned access` fault), which the test runner checks for.
-- **Differential testing**: every pipelined configuration retires the same 1,005,161 instructions, with identical PCs, register writes and stores, as the single-cycle reference core.
+- **Differential testing**: every pipelined configuration retires exactly the same instructions (over 1 million per configuration), with identical PCs, register writes and stores, as the single-cycle reference core.
 - **Branch predictor**: a 64-entry BTB with 2-bit counters. Accuracy is 89–99.9%, and it cuts pipeline CPI from 1.30–1.39 to 1.01–1.10.
 - **Caches**: direct-mapped I$/D$ with configurable size and miss penalty. Hit rates were measured at 256 B / 1 KB / 4 KB.
 - **Runs C**: my own startup code, linker script, UART printing and software multiply/divide (RV32I has no `mul`).
