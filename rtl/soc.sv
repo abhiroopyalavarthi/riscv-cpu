@@ -32,20 +32,24 @@ module soc
     input  logic        rst,
     output logic        done,
     output logic [31:0] exit_code,
-    output logic [31:0] fault_pc     // PC of an illegal instruction, if that's why we stopped
+    output logic [31:0] fault_pc,    // PC of the faulting instruction, if a fault is why we stopped
+    output logic [31:0] fault_addr_q // address of a misaligned access
 );
 
     localparam logic [31:0] UART_TX = 32'h1000_0000;
 
-    // exit code the testbench reads as "illegal instruction"
-    localparam logic [31:0] EXIT_ILLEGAL = 32'hFFFF_FFFF;
+    // exit codes the testbench reads as faults (a program's own codes are
+    // 1 or (n<<1)|1, so an even code can't be a program result)
+    localparam logic [31:0] EXIT_ILLEGAL    = 32'hFFFF_FFFF;
+    localparam logic [31:0] EXIT_MISALIGNED = 32'hFFFF_FFFE;
 
     logic [31:0] imem_addr, imem_rdata;
     logic        imem_ready;
     logic [31:0] dmem_addr, dmem_wdata, dmem_rdata;
     logic        dmem_re, dmem_we, dmem_ready;
     logic [3:0]  dmem_be;
-    logic        ifence, illegal;
+    logic        ifence, illegal, misaligned;
+    logic [31:0] fault_addr;
     logic [31:0] pc_out;
     logic        retire, ctrl_exec, ctrl_redirect;
 
@@ -222,11 +226,17 @@ module soc
             done      <= 1'b0;
             exit_code <= 32'b0;
             fault_pc  <= 32'b0;
+            fault_addr_q <= 32'b0;
         end else if (!done) begin
             if (illegal) begin
                 done      <= 1'b1;
                 exit_code <= EXIT_ILLEGAL;
                 fault_pc  <= pc_out;
+            end else if (misaligned) begin
+                done         <= 1'b1;
+                exit_code    <= EXIT_MISALIGNED;
+                fault_pc     <= pc_out;
+                fault_addr_q <= fault_addr;
             end else if (dmem_we && is_io) begin
                 if ({dmem_addr[31:2], 2'b00} == UART_TX) begin
                     $write("%c", dmem_wdata[7:0]);

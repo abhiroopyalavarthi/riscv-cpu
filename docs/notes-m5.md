@@ -69,12 +69,12 @@ For the waveform version: `make run PROG=hazards CFG=pipe WAVE=1`, then `make wa
 Both cores write the same trace format: one line per retired instruction with PC, instruction, register write and store. The single-cycle trace is printed as each instruction executes; the pipeline's is printed at WB. `scripts/compare_traces.py` diffs every trace:
 
 ```
-pipe vs single: all 50 traces identical (1005156 instructions)
-bp vs single:   all 50 traces identical (1005156 instructions)
-c1k vs single:  all 50 traces identical (1005156 instructions)
+pipe vs single: all 51 traces identical (1005161 instructions)
+bp vs single:   all 51 traces identical (1005161 instructions)
+c1k vs single:  all 51 traces identical (1005161 instructions)
 ```
 
-That's every asm program, every C program, and all 41 rv32ui tests, compared instruction by instruction. If they ever differ, the script prints the first differing line, which is where the pipeline went wrong.
+That's every asm program, every C program, and all 42 rv32ui tests (for `ma_data`, up to the fault), compared instruction by instruction. If they ever differ, the script prints the first differing line, which is where the pipeline went wrong.
 
 **Problem I hit:** programs that read the cycle counter got different values on each core (the pipeline takes more cycles), so the traces split at the first counter read. Fix: `+det-counters` makes every counter read return "how many counter reads came before this one". That's deterministic and the same on every core. `make test` always uses it for traces; `make bench` uses the real counters.
 
@@ -98,7 +98,7 @@ That's every asm program, every C program, and all 41 rv32ui tests, compared ins
 
 - RAM reads are combinational (same-cycle), which is fine in simulation. On an FPGA, block RAM has a registered read, so IF and MEM would need to present the address a cycle earlier (or add stages). That's the first thing I'd change to put this on an FPGA.
 - Branches resolve in EX (2-cycle penalty). Moving the compare to ID would cut it to 1 cycle but adds a forwarding path into ID and lengthens the critical path.
-- No exceptions/interrupts (no CSRs). An illegal instruction just stops the simulation, at WB so wrong-path garbage never triggers it.
+- No exceptions/interrupts (no CSRs). Illegal instructions and misaligned loads/stores stop the simulation instead of trapping to a handler. Both are reported at WB, so a wrong-path instruction that gets flushed can never trigger them. A misaligned access is detected in MEM and cancelled there (no store, no register write).
 
 ## Interview questions
 

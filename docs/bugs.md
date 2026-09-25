@@ -51,3 +51,8 @@ Anything that took more than ~30 min: symptom, how I found it, fix.
 - **Symptom:** on my Mac (Verilator 5.052): `%Warning-PROCASSINIT: Procedural assignment to declaration with initial value: 'trace_stop'`. Everything passed on 5.020.
 - **Cause:** a variable with an initializer in its declaration that's also assigned in an `always_ff`. In simulation it's fine, but for hardware the initial value and the reset are two different mechanisms, so newer Verilator flags it.
 - **Fix:** no initializers on process-assigned variables. They're set by reset in the always_ff (or at the top of the `initial` block for file handles). I built Verilator 5.052 from source to run the whole suite on the same version as the Mac.
+
+## M9 – Misaligned loads silently returned the wrong data
+- **Symptom:** not a crash. Looking into why `ma_data` was the one rv32ui test I skipped: a `lw` from `0x1001` returned the word at `0x1000`, and the program kept going.
+- **Cause:** the RAM ignores address bits [1:0] (the byte enables handle sub-word stores), so nothing ever noticed a misaligned address.
+- **Fix:** both cores check alignment in the load/store path. A misaligned access is cancelled and the SoC stops with `FAIL: misaligned access to <addr> at pc=<pc>`, which is the trap option the spec allows. The test runner now requires `ma_data` to end in that fault instead of skipping it.

@@ -74,6 +74,9 @@ int main(int argc, char** argv) {
     } else if (dut->exit_code == 0xFFFFFFFFu) {
         printf("FAIL: illegal instruction at pc=%08x\n", dut->fault_pc);
         rc = 3;
+    } else if (dut->exit_code == 0xFFFFFFFEu) {
+        printf("FAIL: misaligned access to %08x at pc=%08x\n", dut->fault_addr_q, dut->fault_pc);
+        rc = 4;
     } else {
         printf("FAIL: test %u (exit code %08x) after %llu cycles\n",
                dut->exit_code >> 1, dut->exit_code, (unsigned long long)cycles);

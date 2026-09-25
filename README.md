@@ -15,8 +15,8 @@ PASS (15405 cycles)
 
 ## Highlights
 
-- **Passes the official RISC-V compliance tests**: 41/42 rv32ui tests on every configuration (`ma_data` needs trap support, which is out of scope).
-- **Differential testing**: every pipelined configuration retires the same 1,005,156 instructions, with identical PCs, register writes and stores, as the single-cycle reference core.
+- **Passes the official RISC-V compliance tests**: 41/42 rv32ui tests on every configuration. The last one, `ma_data`, tests misaligned loads/stores; the spec allows a core to handle them in hardware *or* trap, and this core traps (stops with a `misaligned access` fault), which the test runner checks for.
+- **Differential testing**: every pipelined configuration retires the same 1,005,161 instructions, with identical PCs, register writes and stores, as the single-cycle reference core.
 - **Branch predictor**: a 64-entry BTB with 2-bit counters. Accuracy is 89–99.9%, and it cuts pipeline CPI from 1.30–1.39 to 1.01–1.10.
 - **Caches**: direct-mapped I$/D$ with configurable size and miss penalty. Hit rates were measured at 256 B / 1 KB / 4 KB.
 - **Runs C**: my own startup code, linker script, UART printing and software multiply/divide (RV32I has no `mul`).
@@ -101,7 +101,7 @@ make run PROG=fib WAVE=1           # waveform, then: make wave T=sw/fib
 |---|---|---|
 | Unit | ALU (111k vectors incl. edge cases), register file (40k random cycles), immediate generator (100k) against C++ models | `tb/` |
 | Programs | 5 self-checking assembly programs, hello + 3 self-checking C benchmarks | `sw/programs`, `sw/c` |
-| Compliance | riscv-tests rv32ui, 41 tests | `tests/` |
+| Compliance | riscv-tests rv32ui: 41 pass, `ma_data` must end in the misaligned-access fault | `tests/` |
 | Differential | instruction traces of every program and test, pipeline vs single-cycle, line by line | `scripts/compare_traces.py` |
 | Mutation | 18 bugs planted by hand (hazards, predictor, caches, decode) to confirm the tests catch each one | `docs/notes-*.md` |
 
@@ -131,4 +131,5 @@ docs/     design notes per milestone, bug log, results
 - Return address stack: most of matmul's mispredictions are function returns.
 - Registered (synchronous) RAM reads, to map onto FPGA block RAM and run on a Tang Nano 20K.
 - M extension (a multi-cycle divider).
-- CSRs and traps, which would also cover the last compliance test (`ma_data`).
+- Misaligned loads/stores in hardware (split into two accesses), which would make `ma_data` pass too.
+- CSRs and real traps (jump to a handler instead of stopping the simulation).

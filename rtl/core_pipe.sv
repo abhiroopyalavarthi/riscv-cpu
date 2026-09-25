@@ -35,6 +35,8 @@ module core_pipe
     output logic        ifence,
 
     output logic        illegal,
+    output logic        misaligned,
+    output logic [31:0] fault_addr,
     output logic [31:0] pc_out,
 
     output logic        retire,
@@ -79,9 +81,11 @@ module core_pipe
         logic [31:0] instr;
         logic        reg_we;
         logic        illegal;
+        logic        misaligned;
         logic [4:0]  rd;
         logic [31:0] wb_data;
-        // only for the trace: the store this instruction did
+        // the store this instruction did (for the trace), and the memory
+        // address it used (also reported if it faults)
         logic        st_we;
         logic [31:0] st_addr;
         logic [31:0] st_data;
@@ -280,9 +284,15 @@ module core_pipe
     logic [2:0] funct3_m;
     assign funct3_m = exmem.instr[14:12];
 
+    // misaligned load/store: detected here, reported at WB like an illegal
+    // instruction. The access itself is cancelled.
+    logic mis_m;
+    assign mis_m = exmem.valid && (exmem.c.mem_re || exmem.c.mem_we) &&
+                   addr_misaligned(exmem.alu_y[1:0], funct3_m[1:0]);
+
     assign dmem_addr  = exmem.alu_y;
-    assign dmem_re    = exmem.valid && exmem.c.mem_re;
-    assign dmem_we    = exmem.valid && exmem.c.mem_we && advance;
+    assign dmem_re    = exmem.valid && exmem.c.mem_re && !mis_m;
+    assign dmem_we    = exmem.valid && exmem.c.mem_we && !mis_m && advance;
     assign dmem_be    = store_be(exmem.alu_y[1:0], funct3_m[1:0]);
     assign dmem_wdata = store_data(exmem.store_val, funct3_m[1:0]);
 
@@ -299,7 +309,9 @@ module core_pipe
     // WB
     // ==================================================================
     assign retire  = memwb.valid && advance;
-    assign illegal = memwb.valid && memwb.illegal;
+    assign illegal    = memwb.valid && memwb.illegal;
+    assign misaligned = memwb.valid && memwb.misaligned;
+    assign fault_addr = memwb.st_addr;
     assign pc_out  = memwb.pc;
 
     // ==================================================================
@@ -355,11 +367,12 @@ module core_pipe
             memwb.valid   <= exmem.valid;
             memwb.pc      <= exmem.pc;
             memwb.instr   <= exmem.instr;
-            memwb.reg_we  <= exmem.c.reg_we;
+            memwb.reg_we  <= exmem.c.reg_we && !mis_m;
             memwb.illegal <= exmem.c.illegal;
+            memwb.misaligned <= mis_m;
             memwb.rd      <= exmem.rd;
             memwb.wb_data <= wb_data_m;
-            memwb.st_we   <= exmem.valid && exmem.c.mem_we;
+            memwb.st_we   <= exmem.valid && exmem.c.mem_we && !mis_m;
             memwb.st_addr <= dmem_addr;
             memwb.st_data <= dmem_wdata;
             memwb.st_be   <= dmem_be;
@@ -387,7 +400,7 @@ module core_pipe
             if (memwb.st_we)
                 $fwrite(trace_fd, " mem[%08x]=%08x be=%b", memwb.st_addr, memwb.st_data, memwb.st_be);
             $fwrite(trace_fd, "\n");
-            if ((memwb.st_we && {memwb.st_addr[31:2], 2'b00} == MMIO_STATUS) || memwb.illegal)
+            if ((memwb.st_we && {memwb.st_addr[31:2], 2'b00} == MMIO_STATUS) || memwb.illegal || memwb.misaligned)
                 trace_stop <= 1'b1;
         end
     end

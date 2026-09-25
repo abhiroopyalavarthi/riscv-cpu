@@ -23,6 +23,8 @@ module core_single
     output logic        ifence,       // FENCE.I (only the pipeline uses it)
 
     output logic        illegal,      // decoder hit something it doesn't know
+    output logic        misaligned,   // load/store address not aligned to its size
+    output logic [31:0] fault_addr,   // ...and the address it tried to use
     output logic [31:0] pc_out,
 
     // performance counter events
@@ -70,7 +72,7 @@ module core_single
     logic [31:0] rs1_val, rs2_val, wb_data;
     regfile #(.BYPASS(1'b0)) u_rf (   // no bypass - see regfile.sv
         .clk    (clk),
-        .we     (c.reg_we && !rst),
+        .we     (c.reg_we && !rst && !misaligned),
         .waddr  (rd),
         .wdata  (wb_data),
         .raddr1 (rs1),
@@ -110,7 +112,12 @@ module core_single
     // ---------------- memory ----------------
     assign dmem_addr  = alu_y;
     assign dmem_re    = c.mem_re;
-    assign dmem_we    = c.mem_we && !rst;
+    // a misaligned access is a fault: the store doesn't happen, the load
+    // doesn't write rd, and the SoC stops the simulation
+    assign misaligned = !rst && (c.mem_re || c.mem_we) && addr_misaligned(alu_y[1:0], funct3[1:0]);
+    assign fault_addr = alu_y;
+
+    assign dmem_we    = c.mem_we && !rst && !misaligned;
     assign dmem_be    = store_be(alu_y[1:0], funct3[1:0]);
     assign dmem_wdata = store_data(rs2_val, funct3[1:0]);
 
@@ -161,12 +168,12 @@ module core_single
             trace_stop <= 1'b0;
         else if (trace_fd != 0 && !trace_stop) begin
             $fwrite(trace_fd, "%08x %08x", pc, instr);
-            if (c.reg_we && rd != 5'd0)
+            if (c.reg_we && !misaligned && rd != 5'd0)
                 $fwrite(trace_fd, " x%0d=%08x", rd, wb_data);
             if (dmem_we)
                 $fwrite(trace_fd, " mem[%08x]=%08x be=%b", dmem_addr, dmem_wdata, dmem_be);
             $fwrite(trace_fd, "\n");
-            if ((dmem_we && {dmem_addr[31:2], 2'b00} == MMIO_STATUS) || illegal)
+            if ((dmem_we && {dmem_addr[31:2], 2'b00} == MMIO_STATUS) || illegal || misaligned)
                 trace_stop <= 1'b1;
         end
     end

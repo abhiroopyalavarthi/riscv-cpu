@@ -105,6 +105,17 @@ package riscv_pkg;
         endcase
     endfunction
 
+    // RV32I allows misaligned accesses to be done in hardware OR to trap.
+    // This core traps (stops the simulation), so it has to detect them:
+    // halfwords must be 2-byte aligned, words 4-byte aligned.
+    function automatic logic addr_misaligned(input logic [1:0] off, input logic [1:0] size);
+        case (size)
+            2'b01:   return off[0];              // LH, LHU, SH
+            2'b10:   return off != 2'b00;        // LW, SW
+            default: return 1'b0;                // bytes are always aligned
+        endcase
+    endfunction
+
     // pick the right byte/half out of the loaded word and extend it
     function automatic logic [31:0] load_extract(input logic [31:0] w, input logic [1:0] off,
                                                  input logic [2:0] f3);
