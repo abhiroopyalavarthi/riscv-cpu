@@ -1,0 +1,2 @@
+riscv-tests commit 793a5ff2d99a6d9fbd91e84c34b9a0437e313b88 (Tue Sep 22 16:09:45 2026 -0700)
+Only the rv32ui tests (and the rv64ui sources they include) are copied here. Upstream: https://github.com/riscv-software-src/riscv-tests

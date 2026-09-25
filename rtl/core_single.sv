@@ -10,6 +10,7 @@ module core_single
     // instruction port
     output logic [31:0] imem_addr,
     input  logic [31:0] imem_rdata,
+    input  logic        imem_ready,   // always 1 here (no caches on this core)
 
     // data port
     output logic [31:0] dmem_addr,
@@ -18,9 +19,16 @@ module core_single
     output logic [3:0]  dmem_be,
     output logic [31:0] dmem_wdata,
     input  logic [31:0] dmem_rdata,
+    input  logic        dmem_ready,
+    output logic        ifence,       // FENCE.I (only the pipeline uses it)
 
-    output logic        illegal,     // decoder hit something it doesn't know
-    output logic [31:0] pc_out
+    output logic        illegal,      // decoder hit something it doesn't know
+    output logic [31:0] pc_out,
+
+    // performance counter events
+    output logic        retire,       // an instruction completed this cycle
+    output logic        ctrl_exec,    // it was a branch or jump
+    output logic        ctrl_redirect // ...and it changed the PC (taken)
 );
 
     // ---------------- fetch ----------------
@@ -119,27 +127,47 @@ module core_single
     end
 
     assign illegal = c.illegal && !rst;
+    assign ifence  = 1'b0;
+
+    assign retire        = !rst;
+    assign ctrl_exec     = !rst && (c.branch || c.jal || c.jalr);
+    assign ctrl_redirect = !rst && (next_pc != pc_plus4);
+
+    // Ports/fields that only the pipelined core needs. Same interface for
+    // both cores keeps soc.sv simple.
+    /* verilator lint_off UNUSEDSIGNAL */
+    logic unused;
+    assign unused = &{1'b0, imem_ready, dmem_ready, c.use_rs1, c.use_rs2, c.fence_i};
+    /* verilator lint_on UNUSEDSIGNAL */
 
 `ifndef SYNTHESIS
     // ---------------- instruction trace ----------------
     // One line per retired instruction: PC, raw instruction, register
     // write, store. The pipeline prints the same format at WB, so the two
     // traces can be diffed directly.
-    int    trace_fd = 0;
+    // Tracing stops after the store that ends the test, so traces from
+    // both cores line up exactly (the pipeline keeps running a few cycles).
+    int    trace_fd;
+    bit    trace_stop;
     string trace_file;
     initial begin
+        trace_fd = 0;
         if ($value$plusargs("trace=%s", trace_file))
             trace_fd = $fopen(trace_file, "w");
     end
 
     always_ff @(posedge clk) begin
-        if (!rst && trace_fd != 0) begin
+        if (rst)
+            trace_stop <= 1'b0;
+        else if (trace_fd != 0 && !trace_stop) begin
             $fwrite(trace_fd, "%08x %08x", pc, instr);
             if (c.reg_we && rd != 5'd0)
                 $fwrite(trace_fd, " x%0d=%08x", rd, wb_data);
             if (dmem_we)
                 $fwrite(trace_fd, " mem[%08x]=%08x be=%b", dmem_addr, dmem_wdata, dmem_be);
             $fwrite(trace_fd, "\n");
+            if ((dmem_we && {dmem_addr[31:2], 2'b00} == MMIO_STATUS) || illegal)
+                trace_stop <= 1'b1;
         end
     end
 

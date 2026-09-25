@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
 
     std::string wave = plusarg(ctx, "wave");
     std::string maxc = plusarg(ctx, "max-cycles");
-    uint64_t max_cycles = maxc.empty() ? 2000000 : strtoull(maxc.c_str(), nullptr, 0);
+    uint64_t max_cycles = maxc.empty() ? 50000000 : strtoull(maxc.c_str(), nullptr, 0);
 
     if (!wave.empty()) ctx->traceEverOn(true);
     Vsoc* dut = new Vsoc{ctx};
@@ -57,6 +57,11 @@ int main(int argc, char** argv) {
         tick();
         cycles++;
     }
+
+    // Let the pipeline drain so the last instructions reach WB and show up
+    // in the trace (the SoC ignores I/O once done is set).
+    if (dut->done)
+        for (int i = 0; i < 200; i++) tick();
 
     int rc;
     fflush(stdout);

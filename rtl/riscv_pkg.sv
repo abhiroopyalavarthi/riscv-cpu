@@ -61,8 +61,15 @@ package riscv_pkg;
         alu_op_e   alu_op;
         wb_sel_e   wb_sel;
         imm_type_e imm_type;
+        logic      use_rs1;    // instruction reads rs1 / rs2 (for the
+        logic      use_rs2;    //   pipeline's load-use hazard check)
+        logic      fence_i;    // FENCE.I: flush fetch + I-cache
         logic      illegal;
     } ctrl_t;
+
+    // MMIO status register - both cores stop their trace after the store
+    // that ends the test, so traces from different cores line up exactly
+    localparam logic [31:0] MMIO_STATUS = 32'h1000_0008;
 
     // ---------------- branch compare (funct3) ----------------
     function automatic logic branch_taken(input logic [31:0] a, input logic [31:0] b,

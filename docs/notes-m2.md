@@ -112,7 +112,7 @@ Typical flow when a test fails: note the test number → find `CHECK ..., n` in 
 ```
 brew install riscv64-elf-gcc          # once
 make test                             # unit tests + all 4 programs
-make run PROG=memcpy                  # one program (trace in build/sw/memcpy.trace)
+make run PROG=memcpy CFG=single       # one program (trace in build/sw/memcpy.trace)
 make run PROG=fib WAVE=1              # with waveform
 make wave T=sw/fib
 ```

@@ -58,30 +58,37 @@ module decoder
             OP_JALR: begin
                 c.reg_we    = 1'b1;
                 c.jalr      = 1'b1;
+                c.use_rs1   = 1'b1;
                 c.alu_b_imm = 1'b1;          // target = rs1 + imm
                 c.wb_sel    = WB_PC4;
                 c.illegal   = (funct3 != 3'b000);
             end
             OP_BRANCH: begin
                 c.branch   = 1'b1;
+                c.use_rs1  = 1'b1;
+                c.use_rs2  = 1'b1;
                 c.imm_type = IMM_B;
                 c.illegal  = (funct3[2:1] == 2'b01);   // 010, 011 unused
             end
             OP_LOAD: begin
                 c.reg_we    = 1'b1;
                 c.mem_re    = 1'b1;
+                c.use_rs1   = 1'b1;
                 c.alu_b_imm = 1'b1;          // address = rs1 + imm
                 c.wb_sel    = WB_MEM;
                 c.illegal   = (funct3 == 3'b011) || (funct3[2:1] == 2'b11);
             end
             OP_STORE: begin
                 c.mem_we    = 1'b1;
+                c.use_rs1   = 1'b1;
+                c.use_rs2   = 1'b1;
                 c.alu_b_imm = 1'b1;
                 c.imm_type  = IMM_S;
                 c.illegal   = (funct3 > 3'b010);
             end
             OP_IMM: begin
                 c.reg_we    = 1'b1;
+                c.use_rs1   = 1'b1;
                 c.alu_b_imm = 1'b1;
                 c.alu_op    = alu_from_f3(funct3, alt, 1'b1);
                 // shift-immediates: upper bits must be 0000000 (or 0100000 for SRAI)
@@ -91,16 +98,24 @@ module decoder
                     c.illegal = (funct7 != 7'b0000000) && (funct7 != 7'b0100000);
             end
             OP_OP: begin
-                c.reg_we = 1'b1;
-                c.alu_op = alu_from_f3(funct3, alt, 1'b0);
+                c.reg_we  = 1'b1;
+                c.use_rs1 = 1'b1;
+                c.use_rs2 = 1'b1;
+                c.alu_op  = alu_from_f3(funct3, alt, 1'b0);
                 // only ADD/SUB and SRL/SRA have a second encoding
                 if (funct7 == 7'b0100000)
                     c.illegal = (funct3 != 3'b000) && (funct3 != 3'b101);
                 else
                     c.illegal = (funct7 != 7'b0000000);
             end
-            OP_FENCE, OP_SYSTEM: begin
-                // single hart, no caches yet, no CSRs: treat as NOP
+            OP_FENCE: begin
+                // FENCE is a NOP (one hart, in-order memory). FENCE.I
+                // (funct3 = 001) matters once there's an I-cache and a
+                // pipeline that may have fetched stale instructions.
+                c.fence_i = (funct3 == 3'b001);
+            end
+            OP_SYSTEM: begin
+                // ECALL/EBREAK/CSRs: no traps or CSRs in this core -> NOP
             end
             default: c.illegal = 1'b1;
         endcase

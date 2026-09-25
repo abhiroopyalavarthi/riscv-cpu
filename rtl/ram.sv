@@ -15,7 +15,13 @@ module ram #(
     input  logic        d_we,
     input  logic [3:0]  d_be,
     input  logic [31:0] d_wdata,
-    output logic [31:0] d_rdata
+    output logic [31:0] d_rdata,
+
+    // whole 16-byte lines, for cache fills
+    input  logic [31:0]  i_line_addr,
+    output logic [127:0] i_line,
+    input  logic [31:0]  d_line_addr,
+    output logic [127:0] d_line
 );
 
     localparam int AW = $clog2(WORDS);
@@ -29,6 +35,12 @@ module ram #(
     assign i_rdata = mem[i_idx];
     assign d_rdata = mem[d_idx];
 
+    logic [AW-3:0] il_idx, dl_idx;      // line index = word index / 4
+    assign il_idx = i_line_addr[AW+1:4];
+    assign dl_idx = d_line_addr[AW+1:4];
+    assign i_line = {mem[{il_idx, 2'd3}], mem[{il_idx, 2'd2}], mem[{il_idx, 2'd1}], mem[{il_idx, 2'd0}]};
+    assign d_line = {mem[{dl_idx, 2'd3}], mem[{dl_idx, 2'd2}], mem[{dl_idx, 2'd1}], mem[{dl_idx, 2'd0}]};
+
     always_ff @(posedge clk) begin
         if (d_we) begin
             for (int b = 0; b < 4; b++)
@@ -40,7 +52,8 @@ module ram #(
     // are handled by the byte enables, so the RAM ignores them.
     /* verilator lint_off UNUSEDSIGNAL */
     logic unused;
-    assign unused = &{1'b0, i_addr[31:AW+2], i_addr[1:0], d_addr[31:AW+2], d_addr[1:0]};
+    assign unused = &{1'b0, i_addr[31:AW+2], i_addr[1:0], d_addr[31:AW+2], d_addr[1:0],
+                      i_line_addr[31:AW+2], i_line_addr[3:0], d_line_addr[31:AW+2], d_line_addr[3:0]};
     /* verilator lint_on UNUSEDSIGNAL */
 
 `ifndef SYNTHESIS
